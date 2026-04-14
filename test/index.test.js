@@ -56,7 +56,7 @@ describe('readCodexLogs', () => {
       top_level_type: 'response_item',
       item_type: 'message',
       role: 'user',
-      content: 'hello codex',
+      text: 'hello codex',
       cwd: '/tmp/my-project',
       project: 'my-project',
       cli_version: '0.120.0',

@@ -58,15 +58,14 @@ Important columns:
 - `event_type`: Nested event type for `event_msg` payloads
 - `item_type`: Response item type, such as `message`, `reasoning`, `function_call`, or `function_call_output`
 - `role`, `name`, `status`, `call_id`, `item_id`, `turn_id`: Common message and tool-call identifiers
-- `content`, `text`, `arguments`, `output`: Flattened text and tool-call data
+- `text`: The primary readable body for messages, user prompts, tool results, agent messages, and diagnostics
+- `tool_input_json`, `tool_output`: Tool/function call inputs and decoded outputs
 - `model`, `model_provider`, `reasoning_effort`, `cwd`, `title`, `source`, `cli_version`: Thread/session metadata
 - `approval_mode`, `sandbox_policy`, `tokens_used`, `git_sha`, `git_branch`, `git_origin_url`: Execution metadata from `state_5.sqlite`
-- `parent_thread_id`, `child_thread_id`: Subagent relationships from `thread_spawn_edges`
-- `log_*`: Diagnostic log columns from `logs_2.sqlite`
 - `input_tokens`, `cached_input_tokens`, `output_tokens`, `reasoning_output_tokens`, `total_tokens`: Token usage when present in event payloads
-- `rate_limits_json`, `dynamic_tools_json`, `content_json`, `payload_json`, `raw_json`: Raw JSON preservation columns
+- `rate_limits_json`, `metadata_json`, `content_json`, `payload_json`, `raw_json`: Metadata and raw JSON preservation columns
 
-All Parquet columns are written as strings to keep the schema stable across Codex log format changes.
+All Parquet columns are written as strings to keep the schema stable across Codex log format changes. Rare or source-specific details, such as diagnostic log module paths, dynamic tools, and subagent metadata, are preserved in `metadata_json` instead of becoming mostly-empty top-level columns.
 
 ## Options
 

@@ -24,10 +24,9 @@ const columns = [
   'call_id',
   'item_id',
   'turn_id',
-  'content',
   'text',
-  'arguments',
-  'output',
+  'tool_input_json',
+  'tool_output',
   'duration_ms',
   'model',
   'model_provider',
@@ -45,28 +44,13 @@ const columns = [
   'git_origin_url',
   'archived',
   'has_user_event',
-  'agent_nickname',
-  'agent_role',
-  'agent_path',
-  'memory_mode',
-  'parent_thread_id',
-  'child_thread_id',
-  'log_id',
-  'log_level',
-  'log_target',
-  'log_module_path',
-  'log_file',
-  'log_line',
-  'log_thread_id',
-  'log_process_uuid',
-  'log_estimated_bytes',
   'input_tokens',
   'cached_input_tokens',
   'output_tokens',
   'reasoning_output_tokens',
   'total_tokens',
   'rate_limits_json',
-  'dynamic_tools_json',
+  'metadata_json',
   'content_json',
   'payload_json',
   'raw_json',
@@ -179,6 +163,7 @@ function sqliteJson(codexDir, dbName, sql) {
   try {
     const output = execFileSync('sqlite3', ['-json', dbPath, sql], {
       encoding: 'utf8',
+      maxBuffer: 256 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim()
     return output ? JSON.parse(output) : []
@@ -279,6 +264,43 @@ function extractText(item) {
 }
 
 /**
+ * Decode function/tool output bodies to the plain output text when possible.
+ * @param {any} output
+ * @returns {string}
+ */
+function extractToolOutput(output) {
+  if (output === null || output === undefined) return ''
+  if (typeof output !== 'string') return cell(output)
+  const parsed = parseJson(output)
+  if (typeof parsed?.output === 'string') return parsed.output
+  if (typeof parsed?.content === 'string') return parsed.content
+  return output
+}
+
+/**
+ * Drop empty values from an object before preserving it as JSON.
+ * @param {Record<string, any>} obj
+ * @returns {Record<string, any>}
+ */
+function compactObject(obj) {
+  return Object.fromEntries(Object.entries(obj).filter(([, value]) => {
+    if (value === null || value === undefined || value === '') return false
+    if (Array.isArray(value) && value.length === 0) return false
+    return true
+  }))
+}
+
+/**
+ * Serialize an object, returning an empty cell when it has no useful keys.
+ * @param {Record<string, any>} obj
+ * @returns {string}
+ */
+function jsonCell(obj) {
+  const compacted = compactObject(obj)
+  return Object.keys(compacted).length ? JSON.stringify(compacted) : ''
+}
+
+/**
  * @param {any} obj
  * @returns {{input_tokens:string, cached_input_tokens:string, output_tokens:string, reasoning_output_tokens:string, total_tokens:string}}
  */
@@ -299,7 +321,20 @@ function tokenColumns(obj) {
  * @returns {Record<string, string>}
  */
 function makeRow(metadata, extra) {
+  const { metadata_json: extraMetadataJson, ...restExtra } = extra
   const cwd = cell(extra.cwd || metadata.cwd)
+  const metadataJson = jsonCell({
+    created_at: metadata.created_at,
+    updated_at: metadata.updated_at,
+    archived_at: metadata.archived_at,
+    first_user_message: metadata.first_user_message,
+    agent_nickname: metadata.agent_nickname,
+    agent_role: metadata.agent_role,
+    agent_path: metadata.agent_path,
+    memory_mode: metadata.memory_mode,
+    dynamic_tools: parseJson(metadata.dynamic_tools_json || ''),
+    ...(extraMetadataJson ? parseJson(extraMetadataJson) ?? {} : {}),
+  })
   return {
     source_kind: '',
     project: projectName(cwd),
@@ -317,10 +352,9 @@ function makeRow(metadata, extra) {
     call_id: '',
     item_id: '',
     turn_id: '',
-    content: '',
     text: '',
-    arguments: '',
-    output: '',
+    tool_input_json: '',
+    tool_output: '',
     duration_ms: '',
     model: cell(extra.model || metadata.model),
     model_provider: cell(metadata.model_provider),
@@ -338,32 +372,17 @@ function makeRow(metadata, extra) {
     git_origin_url: cell(metadata.git_origin_url),
     archived: cell(metadata.archived),
     has_user_event: cell(metadata.has_user_event),
-    agent_nickname: cell(metadata.agent_nickname),
-    agent_role: cell(metadata.agent_role),
-    agent_path: cell(metadata.agent_path),
-    memory_mode: cell(metadata.memory_mode),
-    parent_thread_id: '',
-    child_thread_id: '',
-    log_id: '',
-    log_level: '',
-    log_target: '',
-    log_module_path: '',
-    log_file: '',
-    log_line: '',
-    log_thread_id: '',
-    log_process_uuid: '',
-    log_estimated_bytes: '',
     input_tokens: '',
     cached_input_tokens: '',
     output_tokens: '',
     reasoning_output_tokens: '',
     total_tokens: '',
     rate_limits_json: '',
-    dynamic_tools_json: cell(metadata.dynamic_tools_json),
+    metadata_json: metadataJson,
     content_json: '',
     payload_json: '',
     raw_json: '',
-    ...extra,
+    ...restExtra,
   }
 }
 
@@ -408,8 +427,8 @@ function readJsonlRollout(file, threads, parents) {
     const payload = obj.payload ?? {}
     const item = obj.type === 'response_item' ? payload : payload
     const tokens = obj.type === 'event_msg' && payload.type === 'token_count' ? tokenColumns(payload) : {}
-    const parentThreadId = parents.get(metadata.id) ?? ''
     const content = item.content ?? item.message?.content
+    const parentThreadId = parents.get(metadata.id) ?? ''
 
     rows.push(makeRow(metadata, {
       source_kind: 'rollout',
@@ -427,10 +446,9 @@ function readJsonlRollout(file, threads, parents) {
       call_id: cell(item.call_id),
       item_id: cell(item.id),
       turn_id: cell(payload.turn_id),
-      content: flattenContent(content),
       text: extractText(item),
-      arguments: cell(item.arguments),
-      output: cell(item.output),
+      tool_input_json: cell(item.arguments),
+      tool_output: extractToolOutput(item.output),
       duration_ms: cell(item.duration_ms),
       model: cell(item.model || metadata.model),
       cwd: cell(payload.cwd || metadata.cwd),
@@ -438,9 +456,11 @@ function readJsonlRollout(file, threads, parents) {
       source: cell(payload.source || metadata.source),
       cli_version: cell(payload.cli_version || metadata.cli_version),
       originator: cell(payload.originator),
-      parent_thread_id: cell(parentThreadId),
-      child_thread_id: parentThreadId ? cell(metadata.id) : '',
       rate_limits_json: cell(payload.rate_limits),
+      metadata_json: cell({
+        parent_thread_id: parentThreadId,
+        child_thread_id: parentThreadId ? metadata.id : '',
+      }),
       content_json: cell(content),
       payload_json: cell(payload),
       raw_json: lines[i],
@@ -472,6 +492,7 @@ function readJsonRollout(file, threads, parents) {
   const items = Array.isArray(obj.items) ? obj.items : []
   return items.map((item, i) => {
     const content = item.content ?? item.message?.content
+    const parentThreadId = parents.get(metadata.id) ?? ''
     return makeRow(metadata, {
       source_kind: 'rollout',
       session_id: cell(metadata.id),
@@ -487,13 +508,14 @@ function readJsonRollout(file, threads, parents) {
       status: cell(item.status),
       call_id: cell(item.call_id),
       item_id: cell(item.id),
-      content: flattenContent(content),
       text: extractText(item),
-      arguments: cell(item.arguments),
-      output: cell(item.output),
+      tool_input_json: cell(item.arguments),
+      tool_output: extractToolOutput(item.output),
       duration_ms: cell(item.duration_ms),
-      parent_thread_id: cell(parentThreadId),
-      child_thread_id: parentThreadId ? cell(metadata.id) : '',
+      metadata_json: cell({
+        parent_thread_id: parentThreadId,
+        child_thread_id: parentThreadId ? metadata.id : '',
+      }),
       content_json: cell(content),
       payload_json: cell(item),
       raw_json: cell(item),
@@ -524,7 +546,6 @@ function readHistoryRows(codexDir, threads) {
       top_level_type: 'history',
       item_type: 'user_prompt',
       role: 'user',
-      content: cell(obj.text),
       text: cell(obj.text),
       payload_json: cell(obj),
       raw_json: line,
@@ -562,17 +583,19 @@ function readDiagnosticRows(codexDir, threads) {
       timestamp_unix: cell(log.ts),
       top_level_type: 'diagnostic_log',
       item_type: 'log',
-      content: cell(log.feedback_log_body),
+      name: cell(log.target),
+      status: cell(log.level),
+      item_id: cell(log.id),
       text: cell(log.feedback_log_body),
-      log_id: cell(log.id),
-      log_level: cell(log.level),
-      log_target: cell(log.target),
-      log_module_path: cell(log.module_path),
-      log_file: cell(log.file),
-      log_line: cell(log.line),
-      log_thread_id: cell(log.thread_id),
-      log_process_uuid: cell(log.process_uuid),
-      log_estimated_bytes: cell(log.estimated_bytes),
+      metadata_json: cell({
+        ts_nanos: log.ts_nanos,
+        module_path: log.module_path,
+        file: log.file,
+        line: log.line,
+        thread_id: log.thread_id,
+        process_uuid: log.process_uuid,
+        estimated_bytes: log.estimated_bytes,
+      }),
       payload_json: cell(log),
       raw_json: cell(log),
     })
@@ -602,7 +625,6 @@ function addFallbackThreadMetadata(rows, threadsById) {
       git_sha: row.git_sha,
       git_branch: row.git_branch,
       git_origin_url: row.git_origin_url,
-      dynamic_tools_json: row.dynamic_tools_json,
     })
   }
 }
