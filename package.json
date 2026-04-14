@@ -1,0 +1,48 @@
+{
+  "name": "codex2parquet",
+  "version": "1.0.0",
+  "description": "CLI tool to export Codex session logs in parquet format",
+  "author": "Hyperparam",
+  "homepage": "https://hyperparam.app",
+  "keywords": [
+    "ai",
+    "codex",
+    "data",
+    "hyperparam",
+    "hyparquet",
+    "ml",
+    "parquet"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hyparam/codex2parquet.git"
+  },
+  "files": [
+    "src",
+    "bin"
+  ],
+  "bin": {
+    "codex2parquet": "bin/cli.js"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "sideEffects": false,
+  "scripts": {
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage --coverage.include=src"
+  },
+  "dependencies": {
+    "hyparquet-writer": "0.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "25.6.0",
+    "@vitest/coverage-v8": "4.1.4",
+    "eslint": "9.39.2",
+    "eslint-plugin-jsdoc": "62.9.0",
+    "typescript": "6.0.2",
+    "vitest": "4.1.4"
+  }
+}
