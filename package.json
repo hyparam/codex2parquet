@@ -25,6 +25,9 @@
   "bin": {
     "codex2parquet": "bin/cli.js"
   },
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "type": "module",
   "main": "src/index.js",
   "sideEffects": false,

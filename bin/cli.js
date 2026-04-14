@@ -8,6 +8,7 @@ import { writeCodexLogsParquet } from '../src/index.js'
  */
 function parseCliArgs() {
   const args = process.argv.slice(2)
+  /** @type {Record<string, string | boolean>} */
   const options = {}
 
   for (let i = 0; i < args.length; i++) {

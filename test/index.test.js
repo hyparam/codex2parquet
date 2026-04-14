@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { readCodexLogs } from '../src/index.js'
 
@@ -8,6 +9,19 @@ function fixtureDir() {
   const root = join(tmpdir(), `codex2parquet-${process.pid}-${Math.random().toString(16).slice(2)}`)
   mkdirSync(join(root, 'sessions', '2026', '04', '13'), { recursive: true })
   return root
+}
+
+/**
+ * @param {string} filename
+ * @param {(db: DatabaseSync) => void} write
+ */
+function writeSqliteFixture(filename, write) {
+  const db = new DatabaseSync(filename)
+  try {
+    write(db)
+  } finally {
+    db.close()
+  }
 }
 
 describe('readCodexLogs', () => {
@@ -93,6 +107,77 @@ describe('readCodexLogs', () => {
       item_type: 'function_call',
       name: 'shell',
       call_id: 'call_123',
+    })
+  })
+
+  it('reads Codex sqlite metadata with the native Node sqlite module', () => {
+    const codexDir = fixtureDir()
+    const rollout = join(codexDir, 'sessions', '2026', '04', '13', 'rollout-2026-04-13T21-00-02-019d8a25-6f8f-7750-aa00-15e23ea2bf64.jsonl')
+    writeFileSync(rollout, JSON.stringify({
+      timestamp: '2026-04-14T04:00:02.000Z',
+      type: 'session_meta',
+      payload: {
+        id: '019d8a25-6f8f-7750-aa00-15e23ea2bf64',
+      },
+    }) + '\n')
+
+    writeSqliteFixture(join(codexDir, 'state_5.sqlite'), db => {
+      db.exec(`
+        create table threads (
+          id text, rollout_path text, created_at text, updated_at text, source text,
+          model_provider text, cwd text, title text, sandbox_policy text,
+          approval_mode text, tokens_used integer, has_user_event integer,
+          archived integer, archived_at text, git_sha text, git_branch text,
+          git_origin_url text, cli_version text, first_user_message text,
+          agent_nickname text, agent_role text, memory_mode text, model text,
+          reasoning_effort text, agent_path text
+        );
+      `)
+      db.prepare(`
+        insert into threads (
+          id, rollout_path, source, model_provider, cwd, title, sandbox_policy,
+          approval_mode, tokens_used, has_user_event, archived, git_sha,
+          git_branch, git_origin_url, cli_version, model, reasoning_effort
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        '019d8a25-6f8f-7750-aa00-15e23ea2bf64',
+        rollout,
+        'cli',
+        'openai',
+        '/tmp/sqlite-project',
+        'SQLite metadata',
+        'workspace-write',
+        'on-request',
+        123,
+        1,
+        0,
+        'abc123',
+        'main',
+        'git@example.com:repo/project.git',
+        '0.120.0',
+        'gpt-5.4',
+        'medium'
+      )
+    })
+
+    const rows = readCodexLogs({
+      codexDir,
+      project: '/tmp/sqlite-project',
+      includeHistory: false,
+      includeDiagnostics: false,
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      source_kind: 'rollout',
+      session_id: '019d8a25-6f8f-7750-aa00-15e23ea2bf64',
+      cwd: '/tmp/sqlite-project',
+      project: 'sqlite-project',
+      title: 'SQLite metadata',
+      approval_mode: 'on-request',
+      sandbox_policy: 'workspace-write',
+      tokens_used: '123',
+      model: 'gpt-5.4',
     })
   })
 })

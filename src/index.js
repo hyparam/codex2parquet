@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'fs'
-import { execFileSync } from 'child_process'
 import { basename, extname, join, resolve } from 'path'
 import { homedir } from 'os'
+import { DatabaseSync } from 'node:sqlite'
 import { parquetWriteFile } from 'hyparquet-writer'
 
 const defaultFilename = 'codex_logs.parquet'
@@ -160,20 +160,20 @@ function sqliteJson(codexDir, dbName, sql) {
   const dbPath = join(codexDir, dbName)
   if (!existsSync(dbPath)) return []
 
+  /** @type {DatabaseSync | undefined} */
+  let db
   try {
-    const output = execFileSync('sqlite3', ['-json', dbPath, sql], {
-      encoding: 'utf8',
-      maxBuffer: 256 * 1024 * 1024,
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim()
-    return output ? JSON.parse(output) : []
+    db = new DatabaseSync(dbPath, { readOnly: true })
+    return db.prepare(sql).all().map(row => ({ ...row }))
   } catch {
     return []
+  } finally {
+    db?.close()
   }
 }
 
 /**
- * Read Codex thread metadata from ~/.codex/state_5.sqlite when sqlite3 is available.
+ * Read Codex thread metadata from ~/.codex/state_5.sqlite when node:sqlite can read it.
  * @param {string} codexDir
  * @returns {{byId: Map<string, Record<string, any>>, byPath: Map<string, Record<string, any>>}}
  */

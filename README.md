@@ -38,9 +38,9 @@ Codex stores local data under `~/.codex` by default. This tool reads:
 - `~/.codex/sessions/rollout-*.json`: legacy rollout logs. Each file contains a `session` object and an `items` array.
 - `~/.codex/state_5.sqlite`: thread metadata, including cwd, title, model, model provider, CLI version, sandbox policy, approval mode, token totals, git metadata, dynamic tools, and subagent parent/child edges.
 - `~/.codex/history.jsonl`: prompt history rows with `session_id`, Unix timestamp, and text.
-- `~/.codex/logs_2.sqlite`: diagnostic/runtime log rows when the `sqlite3` CLI is available.
+- `~/.codex/logs_2.sqlite`: diagnostic/runtime log rows when the current Node.js runtime includes `node:sqlite`.
 
-The SQLite sources are optional. If `sqlite3` is not installed, the exporter still writes rollout and history rows.
+The SQLite sources are optional. The exporter reads them through Node's native `node:sqlite` module and does not require a system `sqlite3` command. If the SQLite files are missing or unreadable, the exporter still writes rollout and history rows.
 
 ## Output Schema
 
@@ -79,9 +79,8 @@ All Parquet columns are written as strings to keep the schema stable across Code
 
 ## Requirements
 
-- Node.js
+- Node.js 22.5.0 or newer. SQLite enrichment uses native `node:sqlite`; no `sqlite3` CLI is required.
 - Codex local data in `~/.codex`
-- Optional: `sqlite3` CLI for metadata and diagnostic-log enrichment
 
 ## Use Cases
 

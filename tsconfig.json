@@ -7,6 +7,9 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2022",
+    "types": [
+      "node"
+    ],
     "outDir": "types",
     "skipLibCheck": true,
     "strict": false
