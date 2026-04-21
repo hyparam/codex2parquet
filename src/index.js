@@ -710,7 +710,12 @@ export async function writeCodexLogsParquet(opts = {}) {
     throw new Error(`No Codex logs found in ${codexDir}`)
   }
 
-  const filename = resolve(opts.filename ?? defaultFilename)
+  let defaultName = defaultFilename
+  if (!opts.filename && opts.project) {
+    const projName = resolve(opts.project).split('/').pop()
+    if (projName) defaultName = `codex_${projName}.parquet`
+  }
+  const filename = resolve(opts.filename ?? defaultName)
 
   try {
     await parquetWriteFile({

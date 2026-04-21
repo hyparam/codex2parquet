@@ -20,7 +20,7 @@ function parseCliArgs() {
 Usage: codex2parquet [options]
 
 Options:
-  --output <file>      Output parquet filename (default: codex_logs.parquet)
+  --output <file>      Output parquet filename (default: codex_<project>.parquet)
   --project <path>     Filter logs to a specific project directory
   --all                Export logs from all Codex projects
   --codex-dir <path>   Codex data directory (default: ~/.codex)

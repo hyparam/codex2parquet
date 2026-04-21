@@ -14,7 +14,7 @@ npm install -g codex2parquet
 ## Usage
 
 ```bash
-# Export Codex logs for current directory to codex_logs.parquet
+# Export Codex logs for current directory to codex_<project>.parquet
 codex2parquet
 
 # Export logs from all projects
@@ -69,7 +69,7 @@ All Parquet columns are written as strings to keep the schema stable across Code
 
 ## Options
 
-- `--output <file>`, `-o <file>`: Output parquet filename (default: `codex_logs.parquet`)
+- `--output <file>`, `-o <file>`: Output parquet filename (default: `codex_<project>.parquet`, or `codex_logs.parquet` with `--all`)
 - `--project <path>`: Filter logs to a specific project directory
 - `--all`: Export logs from all Codex projects
 - `--codex-dir <path>`: Codex data directory (default: `~/.codex`)
