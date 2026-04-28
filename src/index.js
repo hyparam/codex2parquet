@@ -98,6 +98,7 @@ function timestampFromUnix(ts) {
  * @returns {string[]}
  */
 function findRolloutFiles(dir) {
+  /** @type {string[]} */
   const files = []
   if (!existsSync(dir)) return files
 
@@ -154,6 +155,8 @@ function samePath(a, b) {
 
 /**
  * @param {string} codexDir
+ * @param {string} dbName
+ * @param {string} sql
  * @returns {Record<string, any>[]}
  */
 function sqliteJson(codexDir, dbName, sql) {
@@ -323,6 +326,7 @@ function tokenColumns(obj) {
 function makeRow(metadata, extra) {
   const { metadata_json: extraMetadataJson, ...restExtra } = extra
   const cwd = cell(extra.cwd || metadata.cwd)
+  const extraMetadata = extraMetadataJson ? parseJson(extraMetadataJson) ?? {} : {}
   const metadataJson = jsonCell({
     created_at: metadata.created_at,
     updated_at: metadata.updated_at,
@@ -333,7 +337,7 @@ function makeRow(metadata, extra) {
     agent_path: metadata.agent_path,
     memory_mode: metadata.memory_mode,
     dynamic_tools: parseJson(metadata.dynamic_tools_json || ''),
-    ...(extraMetadataJson ? parseJson(extraMetadataJson) ?? {} : {}),
+    ...extraMetadata,
   })
   return {
     source_kind: '',
@@ -405,7 +409,8 @@ function includeForProject(row, project) {
 function readJsonlRollout(file, threads, parents) {
   const lines = readFileSync(file, 'utf8').split('\n').filter(Boolean)
   const pathSessionId = sessionIdFromPath(file)
-  const metadata = { ...(threads.byId.get(pathSessionId) ?? threads.byPath.get(file) ?? {}) }
+  const threadMetadata = threads.byId.get(pathSessionId) ?? threads.byPath.get(file) ?? {}
+  const metadata = { ...threadMetadata }
   metadata.id ??= pathSessionId
   metadata.rollout_path ??= file
 
@@ -483,12 +488,13 @@ function readJsonRollout(file, threads, parents) {
   const session = obj.session ?? {}
   const pathSessionId = sessionIdFromPath(file)
   const sessionId = session.id ?? pathSessionId
-  const metadata = { ...(threads.byId.get(sessionId) ?? threads.byPath.get(file) ?? {}) }
+  const threadMetadata = threads.byId.get(sessionId) ?? threads.byPath.get(file) ?? {}
+  const metadata = { ...threadMetadata }
   metadata.id ??= sessionId
   metadata.rollout_path ??= file
   metadata.title ??= session.instructions
 
-  const parentThreadId = parents.get(metadata.id) ?? ''
+  /** @type {any[]} */
   const items = Array.isArray(obj.items) ? obj.items : []
   return items.map((item, i) => {
     const content = item.content ?? item.message?.content
@@ -532,12 +538,17 @@ function readHistoryRows(codexDir, threads) {
   const historyPath = join(codexDir, 'history.jsonl')
   if (!existsSync(historyPath)) return []
 
-  return readFileSync(historyPath, 'utf8').split('\n').filter(Boolean).flatMap((line, i) => {
+  /** @type {Record<string, string>[]} */
+  const rows = []
+  const lines = readFileSync(historyPath, 'utf8').split('\n').filter(Boolean)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
     const obj = parseJson(line)
-    if (!obj) return []
-    const metadata = { ...(threads.byId.get(obj.session_id) ?? {}) }
+    if (!obj) continue
+    const threadMetadata = threads.byId.get(obj.session_id) ?? {}
+    const metadata = { ...threadMetadata }
     metadata.id ??= obj.session_id
-    return makeRow(metadata, {
+    rows.push(makeRow(metadata, {
       source_kind: 'history',
       session_id: cell(obj.session_id),
       item_index: cell(i),
@@ -549,8 +560,9 @@ function readHistoryRows(codexDir, threads) {
       text: cell(obj.text),
       payload_json: cell(obj),
       raw_json: line,
-    })
-  })
+    }))
+  }
+  return rows
 }
 
 /**
@@ -567,12 +579,14 @@ function readDiagnosticRows(codexDir, threads) {
   `)
 
   return logs.map((log, i) => {
-    const metadata = { ...(threads.byId.get(log.thread_id) ?? {}) }
+    const threadMetadata = threads.byId.get(log.thread_id) ?? {}
+    const metadata = { ...threadMetadata }
     metadata.id ??= log.thread_id
     const ts = Number(log.ts)
     const nanos = Number(log.ts_nanos)
+    const millis = ts * 1000 + (Number.isFinite(nanos) ? Math.floor(nanos / 1e6) : 0)
     const timestamp = Number.isFinite(ts)
-      ? new Date((ts * 1000) + (Number.isFinite(nanos) ? Math.floor(nanos / 1e6) : 0)).toISOString()
+      ? new Date(millis).toISOString()
       : ''
 
     return makeRow(metadata, {

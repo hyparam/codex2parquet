@@ -2,20 +2,13 @@
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
-    "declaration": true,
-    "emitDeclarationOnly": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "target": "ES2022",
-    "types": [
-      "node"
-    ],
-    "outDir": "types",
-    "skipLibCheck": true,
-    "strict": false
+    "lib": ["esnext", "dom"],
+    "module": "nodenext",
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "strictNullChecks": false,
+    "types": ["node"]
   },
-  "include": [
-    "src/**/*.js",
-    "bin/**/*.js"
-  ]
+  "include": ["src", "test"]
 }

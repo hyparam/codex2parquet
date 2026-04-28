@@ -1,3 +1,5 @@
-node_modules/
-*.parquet
+node_modules
+package-lock.json
 *.tgz
+*.parquet
+.DS_Store
