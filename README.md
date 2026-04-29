@@ -30,6 +30,18 @@ codex2parquet --project ~/code/myapp
 codex2parquet --codex-dir ~/.codex
 ```
 
+### Example
+
+```
+$ codex2parquet
+Exported 231 events from 6 sessions to codex_myapp.parquet
+
++------------------------------------------+
+| Analyze logs with Hyperparam:            |
+| npx hyperparam scope codex_myapp.parquet |
++------------------------------------------+
+```
+
 ## What Gets Exported
 
 Codex stores local data under `~/.codex` by default. This tool reads:
@@ -72,6 +84,8 @@ All Parquet columns are written as strings to keep the schema stable across Code
 - `--output <file>`, `-o <file>`: Output parquet filename (default: `codex_<project>.parquet`, or `codex_logs.parquet` with `--all`)
 - `--project <path>`: Filter logs to a specific project directory
 - `--all`: Export logs from all Codex projects
+- `--since <date>`: Only include rows on or after this date (`YYYY-MM-DD` or ISO timestamp)
+- `--until <date>`: Only include rows on or before this date (`YYYY-MM-DD` or ISO timestamp); bare dates are inclusive of the full day
 - `--codex-dir <path>`: Codex data directory (default: `~/.codex`)
 - `--no-history`: Skip prompt history rows
 - `--no-diagnostics`: Skip diagnostic log rows

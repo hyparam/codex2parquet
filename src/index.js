@@ -401,6 +401,32 @@ function includeForProject(row, project) {
 }
 
 /**
+ * Parse a --since value to a lower-bound ISO timestamp string.
+ * @param {string} value
+ * @returns {string}
+ */
+function parseSince(value) {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) throw new Error(`Invalid --since date: ${value}`)
+  return d.toISOString()
+}
+
+/**
+ * Parse a --until value to an upper-bound ISO timestamp string. Bare YYYY-MM-DD
+ * values are treated as end-of-day so the range is inclusive of that day.
+ * @param {string} value
+ * @returns {string}
+ */
+function parseUntil(value) {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) throw new Error(`Invalid --until date: ${value}`)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(d.getTime() + 86400000 - 1).toISOString()
+  }
+  return d.toISOString()
+}
+
+/**
  * @param {string} file
  * @param {{byId: Map<string, Record<string, any>>, byPath: Map<string, Record<string, any>>}} threads
  * @param {Map<string, string>} parents
@@ -645,7 +671,7 @@ function addFallbackThreadMetadata(rows, threadsById) {
 
 /**
  * Read and parse Codex logs into flat rows.
- * @param {{codexDir?: string, project?: string, includeHistory?: boolean, includeDiagnostics?: boolean}} [opts]
+ * @param {{codexDir?: string, project?: string, includeHistory?: boolean, includeDiagnostics?: boolean, since?: string, until?: string}} [opts]
  * @returns {Record<string, string>[]}
  */
 export function readCodexLogs(opts = {}) {
@@ -670,8 +696,18 @@ export function readCodexLogs(opts = {}) {
     rows.push(...readDiagnosticRows(codexDir, threads))
   }
 
+  const since = opts.since ? parseSince(opts.since) : ''
+  const until = opts.until ? parseUntil(opts.until) : ''
+
   return rows
     .filter(row => includeForProject(row, opts.project))
+    .filter(row => {
+      if (!since && !until) return true
+      if (!row.timestamp) return false
+      if (since && row.timestamp < since) return false
+      if (until && row.timestamp > until) return false
+      return true
+    })
     .sort((a, b) => {
       const byTimestamp = a.timestamp.localeCompare(b.timestamp)
       if (byTimestamp) return byTimestamp
@@ -696,7 +732,7 @@ function toColumnData(rows) {
 
 /**
  * Write Codex session logs to a Parquet file.
- * @param {{filename?: string, project?: string, all?: boolean, codexDir?: string, includeHistory?: boolean, includeDiagnostics?: boolean}} [opts]
+ * @param {{filename?: string, project?: string, all?: boolean, codexDir?: string, includeHistory?: boolean, includeDiagnostics?: boolean, since?: string, until?: string}} [opts]
  * @returns {Promise<{eventCount:number, sessionCount:number, filename:string}>}
  */
 export async function writeCodexLogsParquet(opts = {}) {

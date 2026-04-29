@@ -23,6 +23,8 @@ Options:
   --output <file>      Output parquet filename (default: codex_<project>.parquet)
   --project <path>     Filter logs to a specific project directory
   --all                Export logs from all Codex projects
+  --since <date>       Only include rows on/after this date (YYYY-MM-DD or ISO)
+  --until <date>       Only include rows on/before this date (YYYY-MM-DD or ISO)
   --codex-dir <path>   Codex data directory (default: ~/.codex)
   --no-history         Do not include ~/.codex/history.jsonl prompt history rows
   --no-diagnostics     Do not include ~/.codex/logs_2.sqlite diagnostic log rows
@@ -35,6 +37,7 @@ Examples:
   codex2parquet --all
   codex2parquet --output logs.parquet
   codex2parquet --project ~/code/myapp
+  codex2parquet --since 2026-01-01 --until 2026-03-31
   codex2parquet --codex-dir ~/.codex`)
       process.exit(0)
     }
@@ -54,6 +57,24 @@ Examples:
         process.exit(1)
       }
       options.project = args[++i]
+      continue
+    }
+
+    if (arg === '--since') {
+      if (i + 1 >= args.length) {
+        console.error('Error: --since requires a date argument')
+        process.exit(1)
+      }
+      options.since = args[++i]
+      continue
+    }
+
+    if (arg === '--until') {
+      if (i + 1 >= args.length) {
+        console.error('Error: --until requires a date argument')
+        process.exit(1)
+      }
+      options.until = args[++i]
       continue
     }
 
